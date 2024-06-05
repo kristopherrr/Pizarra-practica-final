@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizarra Distribuida</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        #canvas {
+            border: 1px solid black;
+            touch-action: none; 
+        }
+        #colorPicker {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <input type="color" id="colorPicker" value="#000000">
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const socket = io();
+        const colorPicker = document.getElementById('colorPicker');
+
+        let drawing = false;
+        let currentColor = colorPicker.value;
+
+        // Verificar la conexión de Socket.IO
+        socket.on('connect', () => {
+            console.log('Conectado al servidor Socket.IO');
+        });
+
+        // Actualiza el color actual cuando el usuario elige un nuevo color
+        colorPicker.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+        });
+
+        // Evento de ratón para empezar a dibujar
+        canvas.addEventListener('mousedown', (e) => {
+            drawing = true;
+            draw(e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop, false, currentColor);
+        });
+
+        // Evento de ratón para dibujar mientras se mueve el ratón
+        canvas.addEventListener('mousemove', (e) => {
+            if (drawing) {
+                draw(e.clientX - canvas.offsetLeft, e.clientY - canvas.offsetTop, true, currentColor);
+            }
+        });
+
+        // Evento de ratón para dejar de dibujar cuando se suelta el botón
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+        });
+
+
+        // Evento de ratón para dejar de dibujar cuando el ratón sale del canvas
+        canvas.addEventListener('mouseleave', () => {
+            drawing = false;
+        });
+
+        // Agregar eventos táctiles
+        canvas.addEventListener('touchstart', (e) => {
+         e.preventDefault();
+            const touch = e.touches[0];
+            drawing = true;
+            draw(touch.clientX - canvas.offsetLeft, touch.clientY - canvas.offsetTop, false, currentColor);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+             const touch = e.touches[0];
+             if (drawing) {
+              draw(touch.clientX - canvas.offsetLeft, touch.clientY - canvas.offsetTop, true, currentColor);
+            }
+});
+
+canvas.addEventListener('touchend', () => {
+    drawing = false;
+});
+
+canvas.addEventListener('touchcancel', () => {
+    drawing = false;
+});
+
+
+        // Función para manejar el dibujo en el canvas y emitir eventos de dibujo
+        const draw = (x, y, isDrawing, color) => {
+            context.strokeStyle = color;
+            if (isDrawing) {
+                context.lineTo(x, y);
+                context.stroke();
+                console.log(`Emit drawing: ${x}, ${y}, ${color}`);
+                socket.emit('draw_event', {
+                    x: x,
+                    y: y,
+                    drawing: true,
+                    color: color
+                });
+            } else {
+                context.beginPath();
+                context.moveTo(x, y);
+                console.log(`Emit start drawing: ${x}, ${y}, ${color}`);
+                socket.emit('draw_event', {
+                    x: x,
+                    y: y,
+                    drawing: false,
+                    color: color
+                });
+            }
+        };
+
+        // Maneja el evento de dibujo recibido desde el servidor
+        socket.on('draw_event', (data) => {
+            context.strokeStyle = data.color;
+            console.log(`Received drawing: ${data.x}, ${data.y}, ${data.color}`);
+            if (data.drawing) {
+                context.lineTo(data.x, data.y);
+                context.stroke();
+            } else {
+                context.beginPath();
+                context.moveTo(data.x, data.y);
+            }
+        });
+    </script>
+</body>
+</html>
